@@ -1,8 +1,12 @@
-FROM nginx:latest
+FROM alpine:latest
 
-COPY index.html /usr/share/nginx/html
-COPY linux.png /usr/share/nginx/html
+WORKDIR /app
+VOLUME /app
+COPY startup.sh /startup.sh
 
-EXPOSE 80 443 	
+RUN apk add --update --no-cache mysql mysql-client && rm -f /var/cache/apk/*
+COPY my.cnf /etc/mysql/my.cnf
 
-CMD ["nginx", "-g", "daemon off;"]
+
+EXPOSE 3306
+CMD ["mysqld"]
