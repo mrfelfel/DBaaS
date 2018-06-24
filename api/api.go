@@ -4,35 +4,127 @@ import (
 	"encoding/json"
 	"net/http"
 	"log"
+	"context"
+	"strings"
+	//"fmt"
 
 	"github.com/gorilla/mux"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 )
 
-func GetContainers(w http.ResponseWriter, r *http.Request) {
-	
-	out, _ := json.Marshal(containers)
-	log.Print(string(out))
-	json.NewEncoder(w).Encode(containers)
+var dock_cli *client.Client 	// Golang Docker Client 
+
+// Exposed Docker Container information
+type Container struct {
+	ID string
+	Name string
+    Image string
+    Cmd string
 }
 
+/* This function gets a list of IDs of the currently running containers */
+func GetContainers(w http.ResponseWriter, r *http.Request) {
+	
+	// Get container data
+	crs, err := dock_cli.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil{
+		panic(err)
+		return
+	}
+
+	// Extract container IDs
+	id_list := make([]string, len(crs))
+	for i := range crs{
+		id_list[i] = crs[i].ID
+	}
+
+	// pretty print
+	out, jsonerr := json.MarshalIndent(id_list,"", "\t")
+	if jsonerr != nil{
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+    	return
+	}
+
+	// write response
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(out)
+}
+
+
+/* Gets information of a selected container*/
 func GetContainer(w http.ResponseWriter, r *http.Request) {
+
+	// Get container data
+	crs, err := dock_cli.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil{
+		panic(err)
+		return
+	}
+
+	// get URL parameters
 	params := mux.Vars(r)
-	for _, item := range containers{
-		if item.ID == params["id"]{
-			json.NewEncoder(w).Encode(item)
+
+	// loop through containers
+	for _, item := range crs{
+
+		// Match parameter with container ID
+		if strings.HasPrefix(item.ID, params["id"]){
+
+			// pretty print
+			out, jsonerr := json.MarshalIndent(item,"", "\t")
+			if jsonerr != nil{
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+		    	return
+			}
+
+			// write response
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(out)
 			return
 		}		
 	}
+
+	//write empty list
 	json.NewEncoder(w).Encode(&Container{})
 }
 
 func CreateContainer(w http.ResponseWriter, r *http.Request) {
+	// extract parametes
 	params := mux.Vars(r)
-	var container Container
-	_ = json.NewDecoder(r.Body).Decode(&container)
-	container.ID = params["id"]
-	containers = append(containers, container)
-	json.NewEncoder(w).Encode(containers)
+	var c Container
+	_ = json.NewDecoder(r.Body).Decode(&c)
+	c.ID = params["id"]
+	c.Image = r.FormValue("image")
+	c.Cmd = r.FormValue("cmd")
+	c.Image = r.FormValue("test")
+
+	log.Print(r.FormValue("image"))
+	log.Print(r.FormValue("cmd"))
+	log.Print(r.FormValue("test"))
+
+	// create container
+	var config container.Config
+	config.Image = c.Image
+	config.Cmd = []string {c.Cmd}
+
+	resp, err := dock_cli.ContainerCreate(context.Background(), &config ,nil, nil, c.ID)
+	if err != nil{
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// pretty print
+	out, jsonerr := json.MarshalIndent(config,"", "\t")
+	if jsonerr != nil{
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+    	return
+	}
+
+	//GetContainer(w, r)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(out)
 }
 
 func DeleteContainer(w http.ResponseWriter, r *http.Request) {
@@ -46,34 +138,29 @@ func DeleteContainer(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(containers)
 }
 
+
+
 // our main function
 func main() {
 
-	containers = append(containers, Container{"1.1", "base"})
-	containers = append(containers, Container{ID:"2.1", Name:"testing"})
-	containers = append(containers, Container{ID:"3.1", Name:"prod"})
+	// Connect to Docker server
+	cli, err := client.NewClientWithOpts(client.WithVersion("1.37"))
+	if err!=nil {
+		panic(err)
+	}
+	dock_cli = cli
 
+	// Create RESTful API endpoints
 	router := mux.NewRouter()
 	router.HandleFunc("/container", GetContainers).Methods("GET")
+	router.HandleFunc("/container/create", CreateContainer).Methods("POST")
 	router.HandleFunc("/container/{id}", GetContainer).Methods("GET")
-	router.HandleFunc("/container/{id}", CreateContainer).Methods("POST")
+	router.HandleFunc("/container/{id}/start", StartContainer).Methods("POST")
+	router.HandleFunc("/container/{id}/stop", StopContainer).Methods("POST")
 	router.HandleFunc("/container/{id}", DeleteContainer).Methods("DELETE")
+
+	//start listening
 	log.Fatal(http.ListenAndServe(":8000", router))
 }
 
-
-type User struct{
-	ID 	string	//`json:"id,omitempty"`
-	name	string	//`json:"name,omitempty"`
-	containers	*Container //`json:"containers,omitempty"`
-}
-
-type Container struct{
-	ID 	string	`json:"id_nums,omitempty"`
-	Name	string	`json:"name,omitempty"`
-}
-
-var user []User
 var containers []Container
-
-
