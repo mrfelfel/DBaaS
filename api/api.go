@@ -153,6 +153,9 @@ func GetContainer(w http.ResponseWriter, r *http.Request) {
 /* Creates a container */
 func CreateContainer(w http.ResponseWriter, r *http.Request) {
 
+	// get URL parameters
+	params := mux.Vars(r)
+
 	// extract parameters & build the config request
 	log.Print(r.FormValue("Image"))
 	log.Print(r.FormValue("Cmd"))
@@ -175,7 +178,7 @@ func CreateContainer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// create container
-	dckr_res, dckr_err := dock_cli.ContainerCreate(context.Background(), config ,hostConfig, nil, r.FormValue("id"))
+	dckr_res, dckr_err := dock_cli.ContainerCreate(context.Background(), config ,hostConfig, nil, params["cid"])
 	if dckr_err != nil{
 		http.Error(w, dckr_err.Error(), http.StatusInternalServerError)
 		return
@@ -386,8 +389,8 @@ func RemoveDatabase(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var res string
-	/*for rows.Next() {
+	/*var res string
+	for rows.Next() {
 		err := rows.Scan(&res)
 		if err != nil {
 			log.Fatal(err)
@@ -412,19 +415,19 @@ func main() {
 
 	/* Container operations */
 	router.HandleFunc("/container", GetContainers).Methods("GET")
-	router.HandleFunc("/container/create", CreateContainer).Methods("POST")
-	router.HandleFunc("/container/{cid}", DeleteContainer).Methods("DELETE")
 	router.HandleFunc("/container/{cid}", GetContainer).Methods("GET")
+	router.HandleFunc("/container/{cid}", CreateContainer).Methods("POST")
+	router.HandleFunc("/container/{cid}", DeleteContainer).Methods("DELETE")
 
 	/* service operations */
 	router.HandleFunc("/container/{cid}/start", StartContainer).Methods("POST")
 	router.HandleFunc("/container/{cid}/stop", StopContainer).Methods("POST")
 
 	/* database operations */
-	router.HandleFunc("/container/{cid}/list", ListDatabases).Methods("GET")
-	router.HandleFunc("/container/{cid}/{dbid}", GetDatabase).Methods("GET")
-	router.HandleFunc("/container/{cid}/{dbid}", CreateDatabase).Methods("POST")
-	router.HandleFunc("/container/{cid}/{dbid}", RemoveDatabase).Methods("DELETE")
+	router.HandleFunc("/database/{cid}", ListDatabases).Methods("GET")
+	router.HandleFunc("/database/{cid}/{dbid}", GetDatabase).Methods("GET")
+	router.HandleFunc("/database/{cid}/{dbid}", CreateDatabase).Methods("POST")
+	router.HandleFunc("/database/{cid}/{dbid}", RemoveDatabase).Methods("DELETE")
 
 
 	//start listening
