@@ -7,12 +7,17 @@ import (
 	"context"
 	"strings"
 	"time"
-	//"fmt"
+	"database/sql"
+	"fmt"
+	"errors"
 
 	"github.com/gorilla/mux"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
+
+	_ "github.com/go-sql-driver/mysql" //mysql driver
 )
 
 var dock_cli *client.Client 	// Golang Docker Client 
@@ -23,6 +28,37 @@ type Container struct {
 	Name string
 	Image string
 	Cmd string
+}
+
+func __getDatabase(w http.ResponseWriter, r *http.Request) (*sql.DB, error){
+	// get URL parameters
+	params := mux.Vars(r)
+
+	// Get container data
+	dckr_res, dckr_err := __getContainer(params["cid"])
+	if dckr_err != nil{
+		return nil, dckr_err
+	}
+
+	// Not found
+	if dckr_res == nil{
+		return nil, errors.New("docker error: " + params["cid"] + " not found.")
+	}
+
+	// set up connection
+	user := "docker"
+	pass := "docker123"
+	ip := "10.0.75.1"
+	port := dckr_res.Ports[0].PublicPort
+	host := fmt.Sprintf("%s:%s@tcp(%s:%d)/",user, pass, ip, port)
+	//log.Print(host)
+	db, db_err := sql.Open("mysql", host)
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return nil, db_err
+	}
+
+	return db, nil
 }
 
 /* Gets a list of all containers */
@@ -51,7 +87,7 @@ func __getContainer(id string) (*types.Container, error) {
 			return &item, nil
 		}		
 	}
-	return nil, nil
+	return nil, errors.New("Docker error: " + id + " not found.")
 }
 
 /* This function gets a list of IDs of the currently running containers */
@@ -120,12 +156,26 @@ func CreateContainer(w http.ResponseWriter, r *http.Request) {
 	// extract parameters & build the config request
 	log.Print(r.FormValue("Image"))
 	log.Print(r.FormValue("Cmd"))
-	var config container.Config
-	config.Image = r.FormValue("Image")
-	config.Cmd = []string {r.FormValue("Cmd")}
+
+	config := &container.Config{
+		Image : r.FormValue("Image"),
+		Cmd : []string {r.FormValue("Cmd")},
+		ExposedPorts: nat.PortSet{
+			nat.Port("3306/tcp"):{},
+		},
+	}
+
+    	hostConfig := &container.HostConfig{
+    		Binds: []string{
+			"/var/run/docker.sock:/var/run/docker.sock",
+		},
+    		PortBindings: nat.PortMap{
+    			"3306/tcp": []nat.PortBinding{{HostIP:"0.0.0.0"}},
+    		},
+	}
 
 	// create container
-	dckr_res, dckr_err := dock_cli.ContainerCreate(context.Background(), &config ,nil, nil, r.FormValue("id"))
+	dckr_res, dckr_err := dock_cli.ContainerCreate(context.Background(), config ,hostConfig, nil, r.FormValue("id"))
 	if dckr_err != nil{
 		http.Error(w, dckr_err.Error(), http.StatusInternalServerError)
 		return
@@ -237,16 +287,114 @@ func StopContainer(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode("Container stopped: " + dckr_res.ID)
 }
 
-func ListDatabases(w http.ResponseWriter, r *http.Request) {	
+func ListDatabases(w http.ResponseWriter, r *http.Request) {
+
+	db, db_err := __getDatabase(w,r)
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	// ping db
+	db_err = db.Ping()
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// query away!
+	rows, db_err := db.Query("show databases")
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var dbname string
+	var output []string
+	for rows.Next() {
+		err := rows.Scan(&dbname)
+		if err != nil {
+			log.Fatal(err)
+		}
+		output = append(output, dbname)
+	}
+	json.NewEncoder(w).Encode(output)
 }
 
-func CreateDatabase(w http.ResponseWriter, r *http.Request) {	
+func CreateDatabase(w http.ResponseWriter, r *http.Request) {
+	db, db_err := __getDatabase(w,r)
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	// ping db
+	db_err = db.Ping()
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// get URL parameters
+	params := mux.Vars(r)
+	rows, db_err := db.Query("create database " + params["dbid"])
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	/*var res string
+	for rows.Next() {
+		err := rows.Scan(&res)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}*/
+
+	json.NewEncoder(w).Encode("Created database " + params["dbid"] + ".")
 }
 
-func GetDatabase(w http.ResponseWriter, r *http.Request) {	
+func GetDatabase(w http.ResponseWriter, r *http.Request) {
 }
 
-func RemoveDatabase(w http.ResponseWriter, r *http.Request) {	
+func RemoveDatabase(w http.ResponseWriter, r *http.Request) {
+	db, db_err := __getDatabase(w,r)
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	// ping db
+	db_err = db.Ping()
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// get URL parameters
+	params := mux.Vars(r)
+
+	rows, db_err := db.Query("drop database " + params["dbid"])
+	if db_err != nil {
+		http.Error(w, db_err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var res string
+	/*for rows.Next() {
+		err := rows.Scan(&res)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}*/
+
+	json.NewEncoder(w).Encode("Dropped database " + params["dbid"] + ".")
 }
 
 // our main function
@@ -274,8 +422,8 @@ func main() {
 
 	/* database operations */
 	router.HandleFunc("/container/{cid}/list", ListDatabases).Methods("GET")
-	router.HandleFunc("/container/{cid}/createDB", CreateDatabase).Methods("POST")
 	router.HandleFunc("/container/{cid}/{dbid}", GetDatabase).Methods("GET")
+	router.HandleFunc("/container/{cid}/{dbid}", CreateDatabase).Methods("POST")
 	router.HandleFunc("/container/{cid}/{dbid}", RemoveDatabase).Methods("DELETE")
 
 
