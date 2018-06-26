@@ -1,2 +1,3 @@
 all:
+	go get -t -v ./...
 	go build -o bin/api.exe api/api.go
