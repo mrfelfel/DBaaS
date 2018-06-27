@@ -9,7 +9,7 @@ all:
 	go get github.com/docker/go-connections/nat
 
 
-	echo -e "Done getting dependencies..."
+	echo -e "Done getting dependencies... test"
 
 	if [ -d "${GOPATH}/src/github.com/docker/docker/vendor/github.com/docker/go-connections" ]; then \
 		rm -rf ${GOPATH}/src/github.com/docker/go-connections; \
