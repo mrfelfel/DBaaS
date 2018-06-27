@@ -1,25 +1,41 @@
 all:
-	go get -t -v ./...
+	go get github.com/go-sql-driver/mysql
+	go get github.com/gorilla/mux
+	go get github.com/pkg/errors
+	go get golang.org/x/net/proxy
+	go get github.com/docker/docker/api/types
+	go get github.com/docker/docker/api/types/container
+	go get github.com/docker/docker/client
+	go get github.com/docker/go-connections/nat
+
+
 	echo -e "Done getting dependencies..."
 
-	cd ${GOPATH}/src/github.com/docker
-	rm -rf go-connections
+	if [ -d "${GOPATH}/src/github.com/docker/docker/vendor/github.com/docker/go-connections" ]; then \
+		rm -rf ${GOPATH}/src/github.com/docker/go-connections; \
+		mv ${GOPATH}/src/github.com/docker/docker/vendor/github.com/docker/go-connections ${GOPATH}/src/github.com/docker; \
+	fi
 
-
-	cd "${GOPATH}/src/github.com/docker/docker/vendor/github.com/docker/"
-	mv go-connections ${GOPATH}/src/github.com/docker
-
-	cd ${HOME}/gopath/src/github.com/sixtop/DBaaS
 	go build -o bin/api api/api.go
 
-linux:
-	
+linux:	
+	go get github.com/go-sql-driver/mysql
+	go get github.com/gorilla/mux
+	go get github.com/pkg/errors
+	go get golang.org/x/net/proxy
+	go get github.com/docker/docker/api/types
+	go get github.com/docker/docker/api/types/container
+	go get github.com/docker/docker/client
+	go get github.com/docker/go-connections/nat
+
+
 	echo -e "Done getting dependencies..."
 
-	rm -rf ${GOPATH}/src/github.com/docker/go-connections
-	mv ${GOPATH}/src/github.com/docker/docker/vendor/github.com/docker/go-connections ${GOPATH}/src/github.com/docker
+	if [ -d "${GOPATH}/src/github.com/docker/docker/vendor/github.com/docker/go-connections" ]; then \
+		rm -rf ${GOPATH}/src/github.com/docker/go-connections; \
+		mv ${GOPATH}/src/github.com/docker/docker/vendor/github.com/docker/go-connections ${GOPATH}/src/github.com/docker; \
+	fi
 
-	cd ${HOME}/gopath/src/github.com/sixtop/DBaaS
 	go build -o bin/api api/api.go
 
 windows:
