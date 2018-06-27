@@ -1,6 +1,6 @@
 all:
 	go get -t -v ./...
-	echo "Done getting dependencies..."
+	echo -e "Done getting dependencies..."
 	cd "${GOPATH}/src/github.com/docker/docker/vendor/github.com/docker"
 	mv go-connections ${GOPATH}/src/github.com/docker
 	cd ${HOME}/gopath/src/github.com/sixtop/DBaaS
