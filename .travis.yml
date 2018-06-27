@@ -2,3 +2,6 @@ language: go
 
 go:
   - "1.10.3"
+
+script:
+  - build.sh
