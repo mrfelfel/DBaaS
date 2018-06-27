@@ -5,3 +5,7 @@ go:
 
 script:
   - ./build.sh
+
+branches:
+  only:
+    - master
