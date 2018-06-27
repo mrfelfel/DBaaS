@@ -1,6 +1,6 @@
 # DBaaS [![Build Status](https://travis-ci.com/sixtop/DBaaS.svg?branch=master)](https://travis-ci.com/sixtop/DBaaS)
-DBaaS challenge 
 
+[DBaaS challenge](./doc/DBaaS%20POC%20Challenge.pdf)
 
 
 # Endpoints
