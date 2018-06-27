@@ -160,8 +160,11 @@ func CreateContainer(w http.ResponseWriter, r *http.Request) {
 	log.Print(r.FormValue("Image"))
 	log.Print(r.FormValue("Cmd"))
 
+	image := "sixtop/dbaas:mysql"
+	//image := r.FormValue("Image")
+
 	config := &container.Config{
-		Image : r.FormValue("Image"),
+		Image : image,
 		Cmd : []string {r.FormValue("Cmd")},
 		ExposedPorts: nat.PortSet{
 			nat.Port("3306/tcp"):{},
